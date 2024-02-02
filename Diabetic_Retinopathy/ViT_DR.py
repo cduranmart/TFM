@@ -32,18 +32,20 @@ warnings.filterwarnings("ignore")
 
 #Definir hyper-paràmetres
 image_size = 224
-batch_size = 8
+batch_size = 32
 n_classes = 2
 EPOCHS = 30
 
-train_path = 'Dataset/train'
+#train_path = 'Dataset/train'
+train_path = 'Dataset/augmented'
 valid_path = 'Dataset/valid'
 test_path = 'Dataset/test'
 
 # Adjustar classes del diccionari
 classes = {0: "DR", 1: "No_DR"}
 
-#Augmanetació de dades
+#Augmanetació de dades es farà una pre augmentació desde el disc dur
+"""
 def data_augment(image):
     p_spatial = tf.random.uniform([], 0, 1.0, dtype=tf.float32)
     p_rotate = tf.random.uniform([], 0, 1.0, dtype=tf.float32)
@@ -81,14 +83,14 @@ def data_augment(image):
         image = (image - 0.5) * saturation_factor + 0.5
 
     return image
+"""
 
 #Generació de dades
 # Conjunt d'entrenamet
 train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1./255,
                                                                 samplewise_center=True,
-                                                                samplewise_std_normalization=True,
-                                                                preprocessing_function=data_augment)
-
+                                                                samplewise_std_normalization=True)
+                                                           
 train_gen = train_datagen.flow_from_directory(train_path,
                                               target_size=(224, 224),
                                               batch_size=batch_size,
@@ -138,55 +140,6 @@ for img, ax in zip(images, axes):
 plt.tight_layout()
 plt.show()
 
-#Definició dels patches
-class Patches(L.Layer):
-    def __init__(self, patch_size):
-        super(Patches, self).__init__()
-        self.patch_size = patch_size
-
-    def call(self, images):
-        batch_size = tf.shape(images)[0]
-        patches = tf.image.extract_patches(
-            images = images,
-            sizes = [1, self.patch_size, self.patch_size, 1],
-            strides = [1, self.patch_size, self.patch_size, 1],
-            rates = [1, 1, 1, 1],
-            padding = 'VALID',
-        )
-        patch_dims = patches.shape[-1]
-        patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-        return patches
-
-#Visualitació dels patches en una imatge
-plt.figure(figsize=(4, 4))
-batch_size = 16
-patch_size = 7  # Size of the patches to be extract from the input images
-num_patches = (image_size // patch_size) ** 2
-
-x = train_gen.next()
-image = x[0][0]
-
-plt.imshow(image.astype('uint8')) #ull 255
-plt.axis('off')
-
-resized_image = tf.image.resize(
-    tf.convert_to_tensor([image]), size = (image_size, image_size)
-)
-
-patches = Patches(patch_size)(resized_image)
-print(f'Image size: {image_size} X {image_size}')
-print(f'Patch size: {patch_size} X {patch_size}')
-print(f'Patches per image: {patches.shape[1]}')
-print(f'Elements per patch: {patches.shape[-1]}')
-
-n = int(np.sqrt(patches.shape[1]))
-plt.figure(figsize=(4, 4))
-
-for i, patch in enumerate(patches[0]):
-    ax = plt.subplot(n, n, i + 1)
-    patch_img = tf.reshape(patch, (patch_size, patch_size, 3))
-    plt.imshow(patch_img.numpy().astype('uint8'))
-    plt.axis('off')
 
 #Model pre-entrenat
 from vit_keras import vit
@@ -210,6 +163,9 @@ model = tf.keras.Sequential([
     tf.keras.layers.Dense(n_classes, activation='softmax')  # Adjusted for n_classes and softmax
 ], name='vision_transformer')
 
+for layer in vit_model.layers:
+    layer.trainable = False
+    
 model.summary()
 
 #Entrenar el model
@@ -358,7 +314,7 @@ sns.heatmap(confusionmatrix, cmap = 'Blues', annot = True, cbar = True)
 print(classification_report(true_classes, predicted_classes))
 
 #Resultats al conjut de test
-#cheking result on test dataset
+
 predicted_classes = np.argmax(loaded_model.predict(test_gen, steps = test_gen.n // test_gen.batch_size + 1), axis = 1)
 true_classes = test_gen.classes
 class_labels = list(test_gen.class_indices.keys())  
@@ -421,28 +377,32 @@ predicted_classes = np.argmax(predictions, axis=1)
 true_classes = valid_gen.classes
 filenames = valid_gen.filenames
 
-# Trobar els indexs dels falsos negatius
+# Find the indices of false negatives
 false_negatives_indices = [i for i, (true, pred) in enumerate(zip(true_classes, predicted_classes)) if true == 0 and pred == 1]
 
-# Trobar els noms dels arxius dels falsos negatius
+# Retrieve the filenames of the false negative images
 false_negatives_filenames = [filenames[i] for i in false_negatives_indices]
 
+# Now you can loop through these filenames, load the images, and visualize the attention maps
 for filename in false_negatives_filenames:
     img_path = os.path.join(valid_path, filename)
     img = utils.read(img_path, image_size)
 
-    # Generar mapa d'atenció
+    # Generate attention map
     attention_map = visualize.attention_map(model=vit_model, image=img)
 
-    # Plot imatge original i mapa d'atenció
+    # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
     ax1.imshow(img)
     ax1.set_title('Original')
     ax1.axis('off')
+    
     ax2.imshow(attention_map)
     ax2.set_title('Attention Map')
     ax2.axis('off')
+    
     plt.show()
+
     
 #Mapes d'atenció en falsos positius
 predictions = loaded_model.predict(valid_gen)
