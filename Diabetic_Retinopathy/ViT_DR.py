@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jan 15 23:14:42 2024
+#!/usr/bin/env python
+# coding: utf-8
 
-@author: carle
-"""
+# In[1]:
 
-#Importar llibreries
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -17,7 +15,10 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 import seaborn as sns
 
-#Establir model determinístic
+
+# In[2]:
+
+
 def seed_everything(seed = 5):
     random.seed(seed)
     np.random.seed(seed)
@@ -30,7 +31,10 @@ seed_everything()
 import warnings
 warnings.filterwarnings("ignore")
 
-#Definir hyper-paràmetres
+
+# In[3]:
+
+
 image_size = 224
 batch_size = 32
 n_classes = 2
@@ -41,10 +45,15 @@ train_path = 'Dataset/augmented'
 valid_path = 'Dataset/valid'
 test_path = 'Dataset/test'
 
-# Adjustar classes del diccionari
-classes = {0: "DR", 1: "No_DR"}
+#classes = {0: "DR", 1: "No_DR"}
 
-#Augmanetació de dades es farà una pre augmentació desde el disc dur
+
+# ## Data augmentation
+
+# In[5]:
+
+
+#Preaugmentació al disc
 """
 def data_augment(image):
     p_spatial = tf.random.uniform([], 0, 1.0, dtype=tf.float32)
@@ -71,26 +80,32 @@ def data_augment(image):
     # Pixel-level transforms
     if p_pixel_1 >= 0.4:
         # Manual contrast adjustment
-        contrast_factor = 0.5 #1.0
+        contrast_factor = 1.0
         image = (image - 0.5) * contrast_factor + 0.5
     if p_pixel_2 >= 0.4:
         # Manual brightness adjustment
-        brightness_factor = 0.5 #1.0
+        brightness_factor = 1.0
         image = image * brightness_factor
     if p_pixel_3 >= 0.4:
         # Manual saturation adjustment
-        saturation_factor = 0.5 #1.0
+        saturation_factor = 1.0
         image = (image - 0.5) * saturation_factor + 0.5
 
     return image
-"""
+"""    
 
-#Generació de dades
-# Conjunt d'entrenamet
+
+# ## Data Generator
+
+# In[4]:
+
+
+# For training images
 train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1./255,
                                                                 samplewise_center=True,
-                                                                samplewise_std_normalization=True)
-                                                           
+                                                                samplewise_std_normalization=True)#,
+                                                                #preprocessing_function=data_augment)
+
 train_gen = train_datagen.flow_from_directory(train_path,
                                               target_size=(224, 224),
                                               batch_size=batch_size,
@@ -99,7 +114,7 @@ train_gen = train_datagen.flow_from_directory(train_path,
                                               shuffle=True,
                                               class_mode='categorical')
 
-# Conjunt de valifdació
+# For validation images
 valid_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1./255,
                                                                 samplewise_center=True,
                                                                 samplewise_std_normalization=True)
@@ -111,7 +126,7 @@ valid_gen = valid_datagen.flow_from_directory(valid_path,
                                               color_mode='rgb',
                                               shuffle=False,
                                               class_mode='categorical')
-# Conjunt de test
+# For test images
 test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1./255,
                                                                 samplewise_center=True,
                                                                 samplewise_std_normalization=True)
@@ -124,7 +139,12 @@ test_gen = valid_datagen.flow_from_directory(test_path,
                                               shuffle=False,
                                               class_mode='categorical')
 
-#Visualització d'un batch d'imatges
+
+# ## Sample image visualization
+
+# In[5]:
+
+
 warnings.filterwarnings("ignore")
 
 images = [train_gen[0][0][i] for i in range(4)]
@@ -141,8 +161,15 @@ plt.tight_layout()
 plt.show()
 
 
-#Model pre-entrenat
+# ## Building the model
+
+# ## ViT B16 model
+
+# In[6]:
+
+
 from vit_keras import vit
+
 vit_model = vit.vit_b16(image_size=image_size,
                         activation='softmax',
                         pretrained=True,
@@ -151,7 +178,12 @@ vit_model = vit.vit_b16(image_size=image_size,
                         classes=n_classes)
 vit_model.summary()
 
-#Model complert amb les darreres capes per entrenar-les
+
+# ## ViT Model Architecture
+
+# In[7]:
+
+
 model = tf.keras.Sequential([
     vit_model,
     tf.keras.layers.Flatten(),
@@ -168,7 +200,12 @@ for layer in vit_model.layers:
     
 model.summary()
 
-#Entrenar el model
+
+# ## Training the Model
+
+# In[10]:
+
+
 warnings.filterwarnings("ignore")
 
 learning_rate = 1e-4
@@ -178,18 +215,29 @@ optimizer = tfa.optimizers.RectifiedAdam(learning_rate = learning_rate)
 model.compile(optimizer = optimizer, 
               loss = tf.keras.losses.CategoricalCrossentropy(label_smoothing = 0.2), 
               metrics = ['accuracy'])
+
 STEP_SIZE_TRAIN = train_gen.n // train_gen.batch_size
 STEP_SIZE_VALID = valid_gen.n // valid_gen.batch_size
+
+
+
 early_stopping_callbacks = tf.keras.callbacks.EarlyStopping(patience = 15, restore_best_weights = True, verbose = 1)
+
 model.fit(x = train_gen,
           steps_per_epoch = STEP_SIZE_TRAIN,
           validation_data = valid_gen,
           validation_steps = STEP_SIZE_VALID,
           epochs = EPOCHS,
           callbacks = early_stopping_callbacks)
-trainHistory = model.history 
 
-#Salvar i carregar el model
+trainHistory = model.history #guardamos historia
+
+
+# ## Salvar y carregar model
+
+# In[8]:
+
+
 import pickle
 from keras.models import load_model
 
@@ -198,9 +246,10 @@ def save_trained_model(fileName, theModel, theHistory):
     if not os.path.exists(fileName + '.h5'):
         # Save the model
         theModel.save(fileName + '.h5')
+
         # Save the history using pickle
         if isinstance(theHistory, tf.keras.callbacks.History):
-            # Si theHistory és un objecte History d'un from model.fit --> D'un primer entrenament
+            # If theHistory is a History object from model.fit --> 1st training
             history_dict = {
                 'loss': theHistory.history['loss'],
                 'accuracy': theHistory.history['accuracy'],
@@ -208,7 +257,7 @@ def save_trained_model(fileName, theModel, theHistory):
                 'val_accuracy': theHistory.history['val_accuracy'],
             }
         else:
-            # Si theHistory és un diccionari creat manualment --> entrenaments adicionals
+            # If theHistory is a manually created dictionary --> additional trainings
             history_dict = theHistory
 
         with open(fileName + '_history.pkl', 'wb') as file:
@@ -220,10 +269,12 @@ def save_trained_model(fileName, theModel, theHistory):
         
 def load_trained_model(fileName):
     
-    # Per carregar el model s'ha de donar el custom_object 
-    model = load_model(fileName+'.h5', custom_objects={'vit_model': vit_model})
+    # Provide the custom object when loading the model
 
-    # Carregar història
+    model = load_model(fileName+'.h5', custom_objects={'vit_model': vit_model})
+    #model = load_model(fileName+'.h5', custom_objects={'vit_model': vit.vit_b16})
+
+    # Load the training history using pickle
     historyFile = fileName + '_history.pkl'
     if os.path.exists(historyFile):
         with open(historyFile, 'rb') as file:
@@ -235,15 +286,26 @@ def load_trained_model(fileName):
 
     return model, trainHistory
 
+
+# In[13]:
+
+
 save_trained_model('ViT_model', model, trainHistory)
 
-#Salvar el model
-save_trained_model('ViT_model', model, trainHistory)
 
-#Carrgar el model
-loaded_model, previous_history = load_trained_model('ViT_model')
+# ## Carregar model 
 
-#En cas que es vulguin fer entrenaments adicionals
+# In[9]:
+
+
+loaded_model, history = load_trained_model('ViT_model')
+
+
+# ## Nou entrenament (opcional)
+
+# In[ ]:
+
+
 """
 additional_epochs = 5
 learning_rate = 1e-4 
@@ -265,18 +327,50 @@ new_history= loaded_model.fit(x = train_gen,
           validation_steps = STEP_SIZE_VALID,
           epochs = additional_epochs,
           callbacks = early_stopping_callbacks)
+        
+"""      
 
-save_trained_model('ViT_model', loaded_model, new_history)
-loaded_model, new_history = load_trained_model('ViT_model')
 
-# Concatenatenar totes les claus del dccionari anterior i el nou
+# In[ ]:
+
+
+#save_trained_model('ViT_model', loaded_model, new_history)
+
+
+# In[ ]:
+
+
+#loaded_model, new_history = load_trained_model('ViT_model')
+
+
+# In[ ]:
+
+
+#new_history['loss']
+
+
+# In[28]:
+
+
+# Concatenate les entrades del diccionari anterior amb les noves
+"""
 combined_history = {}
 for key in previous_history.keys():
     combined_history[key] = previous_history[key] + new_history[key]
-save_trained_model('ViT_model', loaded_model, combined_history)
 """
 
-#Grficar història
+
+# In[ ]:
+
+
+#save_trained_model('ViT_model', loaded_model, combined_history)
+
+
+# ## Graficar historia
+
+# In[10]:
+
+
 def plot_history(theHistory):
     fig, ax = plt.subplots(2, 1, figsize=(8, 12))
     
@@ -299,50 +393,68 @@ def plot_history(theHistory):
     ax[1].grid(True)
     
     plt.show()
-    
-plot_history(previous_history)
 
-#Resultats al conjunt de validació
+
+plot_history(history)
+
+
+# ## Resultats al conjunt de validació
+
+# In[20]:
+
+
 predicted_classes = np.argmax(loaded_model.predict(valid_gen, steps = valid_gen.n // valid_gen.batch_size + 1), axis = 1)
 true_classes = valid_gen.classes
 class_labels = list(valid_gen.class_indices.keys())  
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap = 'Blues', annot = True, cbar = True)
+sns.heatmap(confusionmatrix, cmap='Blues', annot=True, fmt='d', cbar=True)
 
 print(classification_report(true_classes, predicted_classes))
 
-#Resultats al conjut de test
 
+# ## Resultats al conjunt de test
+
+# In[19]:
+
+
+#cheking result on test dataset
 predicted_classes = np.argmax(loaded_model.predict(test_gen, steps = test_gen.n // test_gen.batch_size + 1), axis = 1)
 true_classes = test_gen.classes
 class_labels = list(test_gen.class_indices.keys())  
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap = 'Blues', annot = True, cbar = True)
+sns.heatmap(confusionmatrix, cmap='Blues', annot=True, fmt='d', cbar=True)
 
 print(classification_report(true_classes, predicted_classes))
 
-#Inferència
+
+# ## Inferència
+
+# In[14]:
+
+
 from tensorflow.keras.preprocessing import image
 import numpy as np
 
-# Carregar la imatge
-#img_path = 'Dataset/test/DR/00cb6555d108_png.rf.29cca170969c6e9918ef9b9209abef8e.jpg' #DR
-img_path = 'Dataset/test/NO_DR/851e40a21f81_png.rf.ea3c2c391c1bad72e2ca50db8cf2270c.jpg' # no DR
+# Load the image file
+img_path = 'Dataset/test/DR/00cb6555d108_png.rf.29cca170969c6e9918ef9b9209abef8e.jpg' #DR
+#img_path = 'Dataset/test/NO_DR/851e40a21f81_png.rf.ea3c2c391c1bad72e2ca50db8cf2270c.jpg' # no DR
 img = image.load_img(img_path, target_size=(224, 224))  # Replace with your model's input size
 
-# Preprocessar la imatge
+# Preprocess the image
 img_array = image.img_to_array(img)
+img_array /= 255.0  # Normalize the image
+img_array -= np.mean(img_array, keepdims=True)  #samplewise centering and normalization
+img_array /= (np.std(img_array, keepdims=True) + 1e-7)
 img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-img_array /= 255.0  # Assuming your model expects images in [0, 1]
 
-# Fer la predicció
+# Make prediction
 predictions = loaded_model.predict(img_array)
 
-# Assignar etiqueta a la predicció
+# Interpret prediction
 predicted_class = np.argmax(predictions, axis=1)
 predicted_class_label = class_labels[predicted_class[0]]
 
@@ -352,16 +464,22 @@ ax.imshow(img)
 
 print("Predicted class:", predicted_class_label)
 
-#Visualització del mapa d'atenció
+
+# ## Visualització del mapa d'atenció
+
+# In[19]:
+
+
 from vit_keras import utils, visualize
 
-# Carregar la imatge
+# Load the image file
 img =utils.read(img_path, 224)
 
-#Generar el mapa d'atenció
+#Generate the attention map
 attention_map = visualize.attention_map(model=vit_model, image=img)
 
-# Plot
+
+# Plot the results
 fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10,10))
 ax1.axis('off')
 ax2.axis('off')
@@ -370,7 +488,11 @@ ax2.set_title('Attention Map')
 ax1.imshow(img)
 ax2.imshow(attention_map)
 
-#Mapes d'atenció de falsos negatius
+
+# ### Visualitzar els falsos negatius i el seu mapa d'atenció al conjunt de validació
+
+# In[20]:
+
 
 predictions = loaded_model.predict(valid_gen)
 predicted_classes = np.argmax(predictions, axis=1)
@@ -403,25 +525,32 @@ for filename in false_negatives_filenames:
     
     plt.show()
 
-    
-#Mapes d'atenció en falsos positius
+
+# ### Visualitzar els falsos positius i el seu mapa d'atenció al conjunt de validació
+
+# In[21]:
+
+
 predictions = loaded_model.predict(valid_gen)
 predicted_classes = np.argmax(predictions, axis=1)
 true_classes = valid_gen.classes
 filenames = valid_gen.filenames
 
-# Trobar els índexs dela falsos positius
+# Find the indices of false negatives
 false_positives_indices = [i for i, (true, pred) in enumerate(zip(true_classes, predicted_classes)) if true == 1 and pred == 0]
 
-# Obtenir el nom dels arxius dels falsos positius 
+# Retrieve the filenames of the false negative images
 false_positives_filenames = [filenames[i] for i in false_positives_indices]
 
+# Now you can loop through these filenames, load the images, and visualize the attention maps
 for filename in false_positives_filenames:
     img_path = os.path.join(valid_path, filename)
     img = utils.read(img_path, image_size)
 
+    # Generate attention map
     attention_map = visualize.attention_map(model=vit_model, image=img)
 
+    # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
     ax1.imshow(img)
     ax1.set_title('Original')
@@ -430,4 +559,12 @@ for filename in false_positives_filenames:
     ax2.imshow(attention_map)
     ax2.set_title('Attention Map')
     ax2.axis('off')
+    
     plt.show()
+
+
+# In[ ]:
+
+
+
+

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 24 15:09:26 2024
+#!/usr/bin/env python
+# coding: utf-8
 
-@author: carle
-"""
+# In[1]:
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -12,11 +11,16 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.layers as L
 import tensorflow_addons as tfa
-import glob, random, os, warnings
+#import glob, random, os, warnings
+import random, os, warnings
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 import seaborn as sns
+
+
+# In[2]:
+
 
 def seed_everything(seed = 42):
     random.seed(seed)
@@ -30,17 +34,29 @@ seed_everything()
 import warnings
 warnings.filterwarnings("ignore")
 
-image_size = 224
-batch_size = 16
-n_classes = 2
-EPOCHS = 10
 
-train_path = 'data/train'
+# In[3]:
+
+
+image_size = 224
+batch_size = 32
+n_classes = 2
+EPOCHS = 40
+
+#train_path = 'data/train'
+train_path = 'data/augmented'
 #valid_path = 'Dataset/valid'
 test_path = 'data/test'
 
-################## Data augmentation ###########################################################
+#classes = {0: "Bening", 1: "Malignant"}
 
+
+# ## Data augmentation
+
+# In[4]:
+
+
+"""
 def data_augment(image):
     p_spatial = tf.random.uniform([], 0, 1.0, dtype=tf.float32)
     p_rotate = tf.random.uniform([], 0, 1.0, dtype=tf.float32)
@@ -66,26 +82,31 @@ def data_augment(image):
     # Pixel-level transforms
     if p_pixel_1 >= 0.4:
         # Manual contrast adjustment
-        contrast_factor = 1.0
+        contrast_factor = 0.8
         image = (image - 0.5) * contrast_factor + 0.5
     if p_pixel_2 >= 0.4:
         # Manual brightness adjustment
-        brightness_factor = 1.0
+        brightness_factor = 0.8
         image = image * brightness_factor
     if p_pixel_3 >= 0.4:
         # Manual saturation adjustment
-        saturation_factor = 1.0
+        saturation_factor = 0.8
         image = (image - 0.5) * saturation_factor + 0.5
 
     return image
+"""    
 
-################ Data generation ###############################################################
+
+# ## Data Generator
+
+# In[4]:
+
 
 datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale = 1./255,
                                                           samplewise_center = True,
                                                           samplewise_std_normalization = True,
-                                                          validation_split = 0.2,
-                                                          preprocessing_function = data_augment)
+                                                          validation_split = 0.2)#,
+                                                          #preprocessing_function = data_augment)
 
 # set as training data
 
@@ -111,6 +132,7 @@ valid_gen  = datagen.flow_from_directory(
     class_mode='categorical',
     subset='validation')
 
+
 test_gen = datagen.flow_from_directory(test_path,
                                               target_size=(224, 224),
                                               batch_size=batch_size,
@@ -119,7 +141,12 @@ test_gen = datagen.flow_from_directory(test_path,
                                               shuffle=False,
                                               class_mode='categorical')
 
-#####################Sample visualization ########################################
+
+# ## Sample image visualization
+
+# In[5]:
+
+
 warnings.filterwarnings("ignore")
 
 images = [train_gen[0][0][i] for i in range(4)]
@@ -135,7 +162,49 @@ for img, ax in zip(images, axes):
 plt.tight_layout()
 plt.show()
 
-################# Building the model ##################################################
+
+# ## Building the model
+
+# ## ResNet50 model - Se entrenan las últimas 20 capas
+
+# In[18]:
+
+
+"""
+from tensorflow.keras import regularizers
+CNN_model = tf.keras.Sequential()
+
+base= tf.keras.applications.ResNet50V2(include_top=False,
+                   input_shape=(224,224,3),
+                   pooling='avg',classes=n_classes,
+                   weights='imagenet')
+
+CNN_model.add(base)
+
+l2_reg = regularizers.l2(0.001)  # You can adjust the regularization factor as needed
+
+CNN_model.add(tf.keras.layers.Flatten())
+CNN_model.add(tf.keras.layers.BatchNormalization())
+CNN_model.add(tf.keras.layers.Dense(64, activation = tfa.activations.gelu, kernel_regularizer=l2_reg))
+CNN_model.add(tf.keras.layers.Dropout(0.3))
+CNN_model.add(tf.keras.layers.BatchNormalization())
+CNN_model.add(tf.keras.layers.Dense(32, activation = tfa.activations.gelu, kernel_regularizer=l2_reg))
+CNN_model.add(tf.keras.layers.Dropout(0.3))
+CNN_model.add(tf.keras.layers.Dense(16, activation = tfa.activations.gelu, kernel_regularizer=l2_reg))
+CNN_model.add(tf.keras.layers.Dropout(0.3))
+CNN_model.add(tf.keras.layers.Dense(n_classes, activation='softmax'))
+
+for layer in base.layers:
+    layer.trainable = False  
+
+for layer in base.layers[-20:]:
+    layer.trainable = True
+CNN_model.summary()
+"""
+
+
+# In[6]:
+
 
 CNN_model = tf.keras.Sequential()
 
@@ -152,17 +221,25 @@ CNN_model.add(tf.keras.layers.Dense(128, activation = tfa.activations.gelu))
 CNN_model.add(tf.keras.layers.BatchNormalization())
 CNN_model.add(tf.keras.layers.Dense(64, activation = tfa.activations.gelu))
 CNN_model.add(tf.keras.layers.Dense(32, activation = tfa.activations.gelu))
-CNN_model.add(tf.keras.layers.Dense(n_classes, 'softmax'))
+CNN_model.add(tf.keras.layers.Dense(n_classes, activation='softmax'))
 
 for layer in base1.layers:
-    layer.trainable = False   
-
+    layer.trainable = False
+"""
+for layer in base1.layers[-10:]:
+    layer.trainable = True
+"""
 CNN_model.summary()
 
-#################### Training the model ##################################################
+
+# ## Training the Model
+
+# In[8]:
+
+
 warnings.filterwarnings("ignore")
 
-learning_rate = 1e-5
+learning_rate = 1e-4
 
 optimizer = tfa.optimizers.RectifiedAdam(learning_rate = learning_rate)
 
@@ -172,7 +249,6 @@ CNN_model.compile(optimizer = optimizer,
 
 STEP_SIZE_TRAIN = train_gen.n // train_gen.batch_size
 STEP_SIZE_VALID = valid_gen.n // valid_gen.batch_size
-
 
 
 early_stopping_callbacks = tf.keras.callbacks.EarlyStopping(patience = 15, restore_best_weights = True, verbose = 1)
@@ -186,7 +262,12 @@ CNN_model.fit(x = train_gen,
 
 CNN_trainHistory = CNN_model.history
 
-################# Salvar y cargar modelo ##################################################
+
+# ## Salvar y carregar model
+
+# In[7]:
+
+
 import pickle
 from keras.models import load_model
 
@@ -234,14 +315,29 @@ def load_trained_model(fileName):
 
     return model, trainHistory
 
-############### Cargar modelo ######################################################
-loaded_model, previous_history = load_trained_model('RESNET50_model')
+
+# In[11]:
 
 
-############### Nou entrenament ####################################################
+save_trained_model('RESNET50_model', CNN_model, CNN_trainHistory)
+
+
+# ## Carregar model 
+
+# In[8]:
+
+
+loaded_model, history = load_trained_model('RESNET50_model')
+
+
+# ## Nou entrenament (opcional)
+
+# In[ ]:
+
+
 import datetime
-additional_epochs = 10
-learning_rate = 1e-5 
+additional_epochs = 20
+learning_rate = 1e-4 
 optimizer = tfa.optimizers.RectifiedAdam(learning_rate=learning_rate) 
 loaded_model.compile(
     optimizer=optimizer,
@@ -270,22 +366,55 @@ new_history= loaded_model.fit(x = train_gen,
           epochs = additional_epochs)#,
           #callbacks = callbacks_list)
     
-######## Gravar nou model ######################################################
-save_trained_model('RESNET50_model', loaded_model, new_history)
+        
 
-######### Carregar nou model ###################################################
+
+# In[ ]:
+
+
+save_trained_model('RESNET50_60_model', loaded_model, new_history)
+
+
+# In[11]:
+
+
 loaded_model, new_history = load_trained_model('RESNET50_model')
 
 
-################## Concatenar històries ######################################
+# In[ ]:
+
+
+new_history['val_accuracy']
+
+
+# In[ ]:
+
+
+previous_history['val_accuracy']
+
+
+# In[14]:
+
+
+# Concatenate diccionari anterior amb lactual
+
 combined_history = {}
 for key in previous_history.keys():
     combined_history[key] = previous_history[key] + new_history[key]
-    
-######################## Gravar model #######################################
-save_trained_model('RESNET50_model', loaded_model, combined_history)
+  
 
-############### Graficar història #########################################
+
+# In[15]:
+
+
+save_trained_model('RESNET50_60_model', loaded_model, combined_history)
+
+
+# ## Graficar historia
+
+# In[9]:
+
+
 def plot_history(theHistory):
     fig, ax = plt.subplots(2, 1, figsize=(8, 12))
     
@@ -309,44 +438,61 @@ def plot_history(theHistory):
     
     plt.show()
 
-plot_history(combined_history)
 
-################### Resultats al conjunt de validació ##############################
+plot_history(history)
+
+
+# ## Resultats
+
+# In[10]:
+
+
+#Al conjunt de validació
 predicted_classes = np.argmax(loaded_model.predict(valid_gen, steps = valid_gen.n // valid_gen.batch_size + 1), axis = 1)
 true_classes = valid_gen.classes
 class_labels = list(valid_gen.class_indices.keys())  
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap = 'Blues', annot = True, cbar = True)
+sns.heatmap(confusionmatrix, cmap = 'Blues', fmt='d', annot = True, cbar = True)
 
 print(classification_report(true_classes, predicted_classes))
 
 
-################## Resultats al conjunt de test####################################
+# In[11]:
+
+
+#Al conjunt de test
 predicted_classes = np.argmax(loaded_model.predict(test_gen, steps = test_gen.n // test_gen.batch_size + 1), axis = 1)
 true_classes = test_gen.classes
 class_labels = list(test_gen.class_indices.keys())  
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap = 'Blues', annot = True, cbar = True)
+sns.heatmap(confusionmatrix, cmap = 'Blues', fmt='d', annot = True, cbar = True)
 
 print(classification_report(true_classes, predicted_classes))
 
-######################## Inferència ###############################################
+
+# ## Inferència
+
+# In[15]:
+
+
 from tensorflow.keras.preprocessing import image
 import numpy as np
 
 # Load the image file
-img_path = 'data/test/malignant/8.jpg' 
+img_path = 'data/test/malignant/39.jpg' 
 
 img = image.load_img(img_path, target_size=(224, 224))  # Replace with your model's input size
 
 # Preprocess the image
 img_array = image.img_to_array(img)
+img_array /= 255.0  # Normalize the image
+img_array -= np.mean(img_array, keepdims=True)  #samplewise centering and normalization
+img_array /= (np.std(img_array, keepdims=True) + 1e-7)
 img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-img_array /= 255.0  # Assuming your model expects images in [0, 1]
 
 # Make prediction
 predictions = loaded_model.predict(img_array)
@@ -357,7 +503,12 @@ predicted_class_label = class_labels[predicted_class[0]]
 
 print("Predicted class:", predicted_class_label)
 
-#################################### Grad-cam ########################################
+
+# ## Grad-cam
+
+# In[17]:
+
+
 import os
 
 os.environ["KERAS_BACKEND"] = "tensorflow"
@@ -368,10 +519,25 @@ import keras
 from IPython.display import Image, display
 import matplotlib as mpl
 
-#Nom de la darrera capa de convolució
+
+# In[16]:
+
+
+#Necesssitem el nom de la darrera capa de convolució del model resnet50.
+base1.summary()
+
+
+# In[18]:
+
+
 last_conv_layer_name = "conv5_block3_3_conv"
 
-################# Algoritme grad-cam ##################################################
+
+# ## Grad cam Algorithm
+
+# In[19]:
+
+
 def get_img_array(img_path, size):
     # `img` is a PIL image of size 299x299
     #img = keras.utils.load_img(img_path, target_size=size) #prob. compatibilitat versions
@@ -419,7 +585,11 @@ def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None
     return heatmap.numpy()
 
 
-################ Visualitzar heat-map ###########################################
+# ## Visualitzar heatmap
+
+# In[20]:
+
+
 # Make model
 model = base1
 
@@ -434,7 +604,9 @@ with tf.device('/cpu:0'): #desactivar GPU- Si no, dóna problemes
 plt.matshow(heatmap)
 plt.show()
 
-######################### Funció grad-cam ########################################
+
+# In[21]:
+
 
 def gradcam(img_path, model=base1, alpha=0.4):
     
@@ -480,7 +652,13 @@ def gradcam(img_path, model=base1, alpha=0.4):
 
     return superimposed_img
 
-########### Visualitzar 10 imatges classificades correctament ######################
+
+# ## Visualitzar 10 imatges classificades correctament i grad-cam
+
+# In[22]:
+
+
+from tensorflow.keras.preprocessing import image
 
 predictions = loaded_model.predict(valid_gen)
 predicted_classes = np.argmax(predictions, axis=1)
@@ -498,7 +676,7 @@ correct_class_filenames = [filenames[i] for i in random_indices]
 
 for filename in correct_class_filenames:
     img_path = os.path.join(train_path, filename)
-    img = utils.read(img_path, image_size)
+    img = image.load_img(img_path)
     img_gradcam= gradcam(img_path)
 
     # Plot the original image and attention map
@@ -512,10 +690,16 @@ for filename in correct_class_filenames:
     ax2.axis('off')
     
     plt.show()
+#print(count, ' elements')
 
 
-################### Visualitzar 10 imatges classificades incorrectament ####################
-#Elements de Classe 0 (Meningioma) classificats erròniament
+# ## Visualitzar 10 imatges classificades incorrectament i grad-cam
+
+# In[23]:
+
+
+from tensorflow.keras.preprocessing import image
+
 predictions = loaded_model.predict(valid_gen)
 predicted_classes = np.argmax(predictions, axis=1)
 true_classes = valid_gen.classes
@@ -532,7 +716,7 @@ correct_class_filenames = [filenames[i] for i in random_indices]
 
 for filename in correct_class_filenames:
     img_path = os.path.join(train_path, filename)
-    img = utils.read(img_path, image_size)
+    img = image.load_img(img_path)
     img_gradcam= gradcam(img_path)
 
     # Plot the original image and attention map
@@ -547,3 +731,10 @@ for filename in correct_class_filenames:
     
     plt.show()
 #print(count, ' elements')
+
+
+# In[ ]:
+
+
+
+
