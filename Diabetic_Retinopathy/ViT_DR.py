@@ -400,7 +400,7 @@ plot_history(history)
 
 # ## Resultats al conjunt de validació
 
-# In[20]:
+# In[10]:
 
 
 predicted_classes = np.argmax(loaded_model.predict(valid_gen, steps = valid_gen.n // valid_gen.batch_size + 1), axis = 1)
@@ -433,7 +433,7 @@ print(classification_report(true_classes, predicted_classes))
 
 # ## Inferència
 
-# In[14]:
+# In[11]:
 
 
 from tensorflow.keras.preprocessing import image
@@ -467,17 +467,16 @@ print("Predicted class:", predicted_class_label)
 
 # ## Visualització del mapa d'atenció
 
-# In[19]:
+# In[13]:
 
 
-from vit_keras import utils, visualize
+from vit_keras import utils, visualize_customized
 
 # Load the image file
 img =utils.read(img_path, 224)
 
 #Generate the attention map
-attention_map = visualize.attention_map(model=vit_model, image=img)
-
+attention_map = visualize_customized.attention_map(model=vit_model, image=img)
 
 # Plot the results
 fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10,10))
@@ -491,7 +490,7 @@ ax2.imshow(attention_map)
 
 # ### Visualitzar els falsos negatius i el seu mapa d'atenció al conjunt de validació
 
-# In[20]:
+# In[14]:
 
 
 predictions = loaded_model.predict(valid_gen)
@@ -511,7 +510,7 @@ for filename in false_negatives_filenames:
     img = utils.read(img_path, image_size)
 
     # Generate attention map
-    attention_map = visualize.attention_map(model=vit_model, image=img)
+    attention_map = visualize_customized.attention_map(model=vit_model, image=img)
 
     # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
@@ -528,7 +527,7 @@ for filename in false_negatives_filenames:
 
 # ### Visualitzar els falsos positius i el seu mapa d'atenció al conjunt de validació
 
-# In[21]:
+# In[15]:
 
 
 predictions = loaded_model.predict(valid_gen)
@@ -548,7 +547,7 @@ for filename in false_positives_filenames:
     img = utils.read(img_path, image_size)
 
     # Generate attention map
-    attention_map = visualize.attention_map(model=vit_model, image=img)
+    attention_map = visualize_customized.attention_map(model=vit_model, image=img)
 
     # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
