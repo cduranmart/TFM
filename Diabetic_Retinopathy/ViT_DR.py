@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
+import warnings
+warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -16,7 +18,7 @@ from sklearn.model_selection import train_test_split
 import seaborn as sns
 
 
-# In[2]:
+# In[3]:
 
 
 def seed_everything(seed = 5):
@@ -28,11 +30,8 @@ def seed_everything(seed = 5):
 
 seed_everything()
 
-import warnings
-warnings.filterwarnings("ignore")
 
-
-# In[3]:
+# In[4]:
 
 
 image_size = 224
@@ -97,7 +96,7 @@ def data_augment(image):
 
 # ## Data Generator
 
-# In[4]:
+# In[5]:
 
 
 # For training images
@@ -142,7 +141,7 @@ test_gen = valid_datagen.flow_from_directory(test_path,
 
 # ## Sample image visualization
 
-# In[5]:
+# In[6]:
 
 
 warnings.filterwarnings("ignore")
@@ -165,7 +164,7 @@ plt.show()
 
 # ## ViT B16 model
 
-# In[6]:
+# In[7]:
 
 
 from vit_keras import vit
@@ -176,12 +175,12 @@ vit_model = vit.vit_b16(image_size=image_size,
                         include_top=False,
                         pretrained_top=False,
                         classes=n_classes)
-vit_model.summary()
+#vit_model.summary()
 
 
 # ## ViT Model Architecture
 
-# In[7]:
+# In[8]:
 
 
 model = tf.keras.Sequential([
@@ -235,7 +234,7 @@ trainHistory = model.history #guardamos historia
 
 # ## Salvar y carregar model
 
-# In[8]:
+# In[9]:
 
 
 import pickle
@@ -295,7 +294,7 @@ save_trained_model('ViT_model', model, trainHistory)
 
 # ## Carregar model 
 
-# In[9]:
+# In[10]:
 
 
 loaded_model, history = load_trained_model('ViT_model')
@@ -368,7 +367,7 @@ for key in previous_history.keys():
 
 # ## Graficar historia
 
-# In[10]:
+# In[11]:
 
 
 def plot_history(theHistory):
@@ -400,7 +399,17 @@ plot_history(history)
 
 # ## Resultats al conjunt de validació
 
-# In[10]:
+# In[12]:
+
+
+#Comprovem etiquetes i la seva consistència als tres conjunts d'imatges
+
+print(train_gen.class_indices)
+print(valid_gen.class_indices)
+print(test_gen.class_indices)
+
+
+# In[13]:
 
 
 predicted_classes = np.argmax(loaded_model.predict(valid_gen, steps = valid_gen.n // valid_gen.batch_size + 1), axis = 1)
@@ -409,14 +418,15 @@ class_labels = list(valid_gen.class_indices.keys())
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap='Blues', annot=True, fmt='d', cbar=True)
+sns.heatmap(confusionmatrix, annot=True, fmt='d', cmap='Blues', cbar=True,
+            xticklabels=class_labels, yticklabels=class_labels) 
 
-print(classification_report(true_classes, predicted_classes))
+print(classification_report(true_classes, predicted_classes, target_names=class_labels))
 
 
 # ## Resultats al conjunt de test
 
-# In[19]:
+# In[15]:
 
 
 #cheking result on test dataset
@@ -426,21 +436,22 @@ class_labels = list(test_gen.class_indices.keys())
 
 confusionmatrix = confusion_matrix(true_classes, predicted_classes)
 plt.figure(figsize = (4, 4))
-sns.heatmap(confusionmatrix, cmap='Blues', annot=True, fmt='d', cbar=True)
+sns.heatmap(confusionmatrix, annot=True, fmt='d', cmap='Blues', cbar=True,
+            xticklabels=class_labels, yticklabels=class_labels) 
 
-print(classification_report(true_classes, predicted_classes))
+print(classification_report(true_classes, predicted_classes, target_names=class_labels))
 
 
 # ## Inferència
 
-# In[11]:
+# In[17]:
 
 
 from tensorflow.keras.preprocessing import image
 import numpy as np
 
 # Load the image file
-img_path = 'Dataset/test/DR/00cb6555d108_png.rf.29cca170969c6e9918ef9b9209abef8e.jpg' #DR
+img_path = 'Dataset/test/DR/test_074.jpg' #DR
 #img_path = 'Dataset/test/NO_DR/851e40a21f81_png.rf.ea3c2c391c1bad72e2ca50db8cf2270c.jpg' # no DR
 img = image.load_img(img_path, target_size=(224, 224))  # Replace with your model's input size
 
@@ -460,6 +471,7 @@ predicted_class_label = class_labels[predicted_class[0]]
 
 fig, ax = plt.subplots(figsize=(5,5))
 ax.axis('off')
+ax.set_title(img_path)
 ax.imshow(img)
 
 print("Predicted class:", predicted_class_label)
@@ -467,7 +479,7 @@ print("Predicted class:", predicted_class_label)
 
 # ## Visualització del mapa d'atenció
 
-# In[13]:
+# In[20]:
 
 
 from vit_keras import utils, visualize_customized
@@ -482,15 +494,15 @@ attention_map = visualize_customized.attention_map(model=vit_model, image=img)
 fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10,10))
 ax1.axis('off')
 ax2.axis('off')
-ax1.set_title('Original')
-ax2.set_title('Attention Map')
+ax1.set_title(img_path+' Original')
+ax2.set_title(img_path+' Attention Map')
 ax1.imshow(img)
 ax2.imshow(attention_map)
 
 
-# ### Visualitzar els falsos negatius i el seu mapa d'atenció al conjunt de validació
+# ### Retinografies amb RD classificades erròniament com a sanes
 
-# In[14]:
+# In[22]:
 
 
 predictions = loaded_model.predict(valid_gen)
@@ -515,19 +527,19 @@ for filename in false_negatives_filenames:
     # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
     ax1.imshow(img)
-    ax1.set_title('Original')
+    ax1.set_title(filename+' Original')
     ax1.axis('off')
     
     ax2.imshow(attention_map)
-    ax2.set_title('Attention Map')
+    ax2.set_title(filename+' Attention Map')
     ax2.axis('off')
     
     plt.show()
 
 
-# ### Visualitzar els falsos positius i el seu mapa d'atenció al conjunt de validació
+# ### Retinografies sanes classificades erròniament com a RD
 
-# In[15]:
+# In[23]:
 
 
 predictions = loaded_model.predict(valid_gen)
@@ -552,11 +564,89 @@ for filename in false_positives_filenames:
     # Plot the original image and attention map
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
     ax1.imshow(img)
-    ax1.set_title('Original')
+    ax1.set_title(filename+' Original')
     ax1.axis('off')
     
     ax2.imshow(attention_map)
-    ax2.set_title('Attention Map')
+    ax2.set_title(filename+' Attention Map')
+    ax2.axis('off')
+    
+    plt.show()
+
+
+# ## Mostra aleatòria de 10 Retinografies amb RD classificades correctament 
+
+# In[26]:
+
+
+predictions = loaded_model.predict(valid_gen)
+predicted_classes = np.argmax(predictions, axis=1)
+true_classes = valid_gen.classes
+filenames = valid_gen.filenames
+
+# Trobar els indexs dels elements amb RD classificats correctament
+indices = [i for i, (true, pred) in enumerate(zip(true_classes, predicted_classes)) if (true == 0 and pred == 0)]
+
+#seleccionar 10 indexs random
+random_indices = np.random.choice(indices, 10, replace=False)
+
+# Trobar els noms dels arxius
+filenames = [filenames[i] for i in random_indices]
+
+for filename in filenames:
+    img_path = os.path.join(valid_path, filename)
+    img = utils.read(img_path, image_size)
+
+    # Generate attention map
+    attention_map = visualize_customized.attention_map(model=vit_model, image=img)
+
+    # Plot the original image and attention map
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
+    ax1.imshow(img)
+    ax1.set_title(filename +' Original')
+    ax1.axis('off')
+    
+    ax2.imshow(attention_map)
+    ax2.set_title(filename +' Attention Map')
+    ax2.axis('off')
+    
+    plt.show()
+
+
+# ## Mostra aleatòria de 10 Retinografies sanes classificades correctament 
+
+# In[27]:
+
+
+predictions = loaded_model.predict(valid_gen)
+predicted_classes = np.argmax(predictions, axis=1)
+true_classes = valid_gen.classes
+filenames = valid_gen.filenames
+
+# Trobar els indexs dels elements amb RD classificats correctament
+indices = [i for i, (true, pred) in enumerate(zip(true_classes, predicted_classes)) if (true == 1 and pred == 1)]
+
+#seleccionar 10 indexs random
+random_indices = np.random.choice(indices, 10, replace=False)
+
+# Trobar els noms dels arxius
+filenames = [filenames[i] for i in random_indices]
+
+for filename in filenames:
+    img_path = os.path.join(valid_path, filename)
+    img = utils.read(img_path, image_size)
+
+    # Generate attention map
+    attention_map = visualize_customized.attention_map(model=vit_model, image=img)
+
+    # Plot the original image and attention map
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 5))
+    ax1.imshow(img)
+    ax1.set_title(filename +' Original')
+    ax1.axis('off')
+    
+    ax2.imshow(attention_map)
+    ax2.set_title(filename +' Attention Map')
     ax2.axis('off')
     
     plt.show()
