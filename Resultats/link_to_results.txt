@@ -1,3 +1,3 @@
-Les inferències així com les  imatges generades per a cada retinopatia i el dataset amb les mètriques poden estan disponibles per als membres de la Comunitat per a la Fundació de la Universitat Oberta de Catalunya mitjançant el següent enllaç:
+Les inferències així com les  imatges generades per a cada retinopatia al testset i el dataset amb les mètriques poden estan disponibles per als membres de la Comunitat per a la Fundació de la Universitat Oberta de Catalunya mitjançant el següent enllaç:
 
 https://drive.google.com/drive/folders/1wrUC56Kc2CC1L_rMrWtMgN_dfiZTRsH7?usp=sharing
